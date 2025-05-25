@@ -68,7 +68,7 @@ module.exports = {
       listenIps: [
         {
           ip: '0.0.0.0',
-          announcedIp: "https://mediasoup-webrtc.vercel.app/" // replace by public IP address
+          announcedIp: getLocalIp() // replace by public IP address
         }
       ],
       maxIncomingBitrate: 1500000,
