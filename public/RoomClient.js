@@ -15,8 +15,9 @@ const _EVENTS = {
 }
 
 class RoomClient {
-  constructor(localMediaEl, remoteVideoEl, remoteAudioEl, mediasoupClient, socket, room_id, name, successCallback) {
+  constructor(localMediaEl, remoteVideoEl, remoteAudioEl, mediasoupClient, socket, room_id, name, profilePicUrl, successCallback) {
     this.name = name
+    this.profilePicUrl = profilePicUrl
     this.localMediaEl = localMediaEl
     this.remoteVideoEl = remoteVideoEl
     this.remoteAudioEl = remoteAudioEl
@@ -52,9 +53,10 @@ class RoomClient {
 
     this.createRoom(room_id).then(
       async function () {
-        await this.join(name, room_id)
+        await this.join(name, room_id, profilePicUrl)
         this.initSockets()
         this._isOpen = true
+        this.showLocalProfileImage()
         successCallback()
       }.bind(this)
     )
@@ -72,15 +74,21 @@ class RoomClient {
       })
   }
 
-  async join(name, room_id) {
-    socket
+  async join(name, room_id, profilePicUrl) {
+    this.socket
       .request('join', {
         name,
-        room_id
+        room_id,
+        profilePicUrl
       })
       .then(
         async function (e) {
-          console.log('Joined to room', e)
+          // e.peers is the list of existing users
+          if (e && e.peers) {
+            e.peers.forEach((peer) => {
+              this.addRemoteUserTile(peer)
+            })
+          }
           const data = await this.socket.request('getRouterRtpCapabilities')
           let device = await this.loadDevice(data)
           this.device = device
@@ -259,6 +267,23 @@ class RoomClient {
         this.exit(true)
       }.bind(this)
     )
+
+    this.socket.on(
+      'user-joined',
+      function (user) {
+        this.addRemoteUserTile(user)
+      }.bind(this)
+    )
+
+    this.socket.on(
+      'user-left',
+      function (user) {
+        // user.peerId should be present
+        if (user && user.peerId) {
+          this.removeRemoteUserTile(user.peerId)
+        }
+      }.bind(this)
+    )
   }
 
   //////// MAIN FUNCTIONS /////////////
@@ -360,8 +385,27 @@ class RoomClient {
         elem.playsinline = false
         elem.autoplay = true
         elem.className = 'vid'
-        this.localMediaEl.appendChild(elem)
+
+        // Create a container for video and username
+        const containerDiv = document.createElement('div')
+        containerDiv.style.display = 'flex'
+        containerDiv.style.flexDirection = 'column'
+        containerDiv.style.alignItems = 'center'
+        containerDiv.style.margin = '10px'
+        
+        containerDiv.appendChild(elem)
+
+        // Create and add username display below local video
+        const usernameDiv = document.createElement('div')
+        usernameDiv.textContent = this.name
+        usernameDiv.className = 'username-display'
+        containerDiv.appendChild(usernameDiv)
+
+        this.localMediaEl.appendChild(containerDiv)
         this.handleFS(elem.id)
+
+        // Remove profile image if present (when video starts)
+        this.showLocalProfileImageRemoveOnly()
       }
 
       producer.on('trackended', () => {
@@ -411,10 +455,8 @@ class RoomClient {
   }
 
   async consume(producer_id) {
-    //let info = await this.roomInfo()
-
     this.getConsumeStream(producer_id).then(
-      function ({ consumer, stream, kind }) {
+      function ({ consumer, stream, kind, producerName }) {
         this.consumers.set(consumer.id, consumer)
 
         let elem
@@ -425,7 +467,23 @@ class RoomClient {
           elem.playsinline = false
           elem.autoplay = true
           elem.className = 'vid'
-          this.remoteVideoEl.appendChild(elem)
+          
+          // Create a container for video and username
+          const containerDiv = document.createElement('div')
+          containerDiv.style.display = 'flex'
+          containerDiv.style.flexDirection = 'column'
+          containerDiv.style.alignItems = 'center'
+          containerDiv.style.margin = '10px'
+          
+          containerDiv.appendChild(elem)
+          
+          // Create and add username display below remote video
+          const remoteUsernameDiv = document.createElement('div')
+          remoteUsernameDiv.textContent = producerName || 'Unknown User'
+          remoteUsernameDiv.className = 'username-display'
+          containerDiv.appendChild(remoteUsernameDiv)
+          
+          this.remoteVideoEl.appendChild(containerDiv)
           this.handleFS(elem.id)
         } else {
           elem = document.createElement('audio')
@@ -457,10 +515,10 @@ class RoomClient {
     const { rtpCapabilities } = this.device
     const data = await this.socket.request('consume', {
       rtpCapabilities,
-      consumerTransportId: this.consumerTransport.id, // might be
+      consumerTransportId: this.consumerTransport.id,
       producerId
     })
-    const { id, kind, rtpParameters } = data
+    const { id, kind, rtpParameters, producerName } = data  // Get producer name from server
 
     let codecOptions = {}
     const consumer = await this.consumerTransport.consume({
@@ -477,7 +535,8 @@ class RoomClient {
     return {
       consumer,
       stream,
-      kind
+      kind,
+      producerName // Pass producerName to consume
     }
   }
 
@@ -500,10 +559,16 @@ class RoomClient {
 
     if (type !== mediaType.audio) {
       let elem = document.getElementById(producer_id)
+      if (elem) {
       elem.srcObject.getTracks().forEach(function (track) {
         track.stop()
       })
       elem.parentNode.removeChild(elem)
+      }
+      // Show profile image if video is stopped
+      if (type === mediaType.video) {
+        this.showLocalProfileImage()
+      }
     }
 
     switch (type) {
@@ -543,11 +608,17 @@ class RoomClient {
 
   removeConsumer(consumer_id) {
     let elem = document.getElementById(consumer_id)
+    if (elem) {
     elem.srcObject.getTracks().forEach(function (track) {
       track.stop()
     })
-    elem.parentNode.removeChild(elem)
-
+      // Find and remove the container div instead of just the video element
+      let container = elem.parentNode
+      if (container && container.parentNode) {
+        container.parentNode.removeChild(container)
+      }
+    }
+    // TODO: Show remote profile image if available (requires signaling profile image to others)
     this.consumers.delete(consumer_id)
   }
 
@@ -673,5 +744,83 @@ class RoomClient {
         videoPlayer.style.pointerEvents = 'auto'
       }
     })
+  }
+
+  showLocalProfileImage() {
+    // Remove any existing profile image
+    const existingProfileImg = this.localMediaEl.querySelector('.local-profile-img')
+    if (existingProfileImg) existingProfileImg.parentNode.removeChild(existingProfileImg)
+    // Remove any existing video containers
+    const videoContainers = this.localMediaEl.querySelectorAll('div')
+    videoContainers.forEach(div => {
+      if (div.querySelector('video')) div.parentNode.removeChild(div)
+    })
+    // Remove any existing username display
+    const existingUsername = this.localMediaEl.querySelector('.username-display')
+    if (existingUsername) existingUsername.parentNode.removeChild(existingUsername)
+    // Add profile image if available
+    if (this.profilePicUrl) {
+      const img = document.createElement('img')
+      img.src = this.profilePicUrl
+      img.className = 'local-profile-img'
+      img.style.maxWidth = '200px'
+      img.style.maxHeight = '200px'
+      img.style.borderRadius = '50%'
+      img.style.border = '2px solid #2c3e50'
+      img.style.margin = '10px auto 0 auto'
+      img.style.display = 'block'
+      this.localMediaEl.appendChild(img)
+      // Add username below profile image
+      const usernameDiv = document.createElement('div')
+      usernameDiv.textContent = this.name
+      usernameDiv.className = 'username-display'
+      usernameDiv.style.textAlign = 'center'
+      usernameDiv.style.marginBottom = '15px'
+      this.localMediaEl.appendChild(usernameDiv)
+    }
+  }
+
+  showLocalProfileImageRemoveOnly() {
+    // Remove only the profile image, not video containers
+    const existingProfileImg = this.localMediaEl.querySelector('.local-profile-img')
+    if (existingProfileImg) existingProfileImg.parentNode.removeChild(existingProfileImg)
+    // Remove any existing username display
+    const existingUsername = this.localMediaEl.querySelector('.username-display')
+    if (existingUsername) existingUsername.parentNode.removeChild(existingUsername)
+  }
+
+  addRemoteUserTile(user) {
+    // Only add if not already present
+    if (document.getElementById('user-tile-' + user.peerId)) return
+    const containerDiv = document.createElement('div')
+    containerDiv.id = 'user-tile-' + user.peerId
+    containerDiv.style.display = 'flex'
+    containerDiv.style.flexDirection = 'column'
+    containerDiv.style.alignItems = 'center'
+    containerDiv.style.margin = '10px'
+    // Profile picture
+    const img = document.createElement('img')
+    img.src = user.profilePicUrl
+    img.alt = user.name
+    img.className = 'profile-pic'
+    img.style.width = '40px'
+    img.style.height = '40px'
+    img.style.borderRadius = '50%'
+    img.style.marginBottom = '4px'
+    containerDiv.appendChild(img)
+    // Name
+    const nameDiv = document.createElement('div')
+    nameDiv.textContent = user.name
+    nameDiv.className = 'username-display'
+    containerDiv.appendChild(nameDiv)
+    // Add to remote video area
+    this.remoteVideoEl.appendChild(containerDiv)
+  }
+
+  removeRemoteUserTile(peerId) {
+    const tile = document.getElementById('user-tile-' + peerId)
+    if (tile && tile.parentNode) {
+      tile.parentNode.removeChild(tile)
+    }
   }
 }

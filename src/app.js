@@ -89,10 +89,11 @@ io.on('connection', (socket) => {
     }
   })
 
-  socket.on('join', ({ room_id, name }, cb) => {
+  socket.on('join', ({ room_id, name, profilePicUrl }, cb) => {
     console.log('User joined', {
       room_id: room_id,
-      name: name
+      name: name,
+      profilePicUrl: profilePicUrl
     })
 
     if (!roomList.has(room_id)) {
@@ -101,10 +102,31 @@ io.on('connection', (socket) => {
       })
     }
 
-    roomList.get(room_id).addPeer(new Peer(socket.id, name))
+    roomList.get(room_id).addPeer(new Peer(socket.id, name, profilePicUrl))
     socket.room_id = room_id
 
-    cb(roomList.get(room_id).toJson())
+    // Notify others in the room about the new user
+    roomList.get(room_id).broadCast(socket.id, 'user-joined', {
+      peerId: socket.id,
+      name: name,
+      profilePicUrl: profilePicUrl
+    })
+    // ALSO send a notification event for the notification bar
+    roomList.get(room_id).broadCast(socket.id, 'notification', {
+      message: `${name} joined the room.`
+    })
+
+    // Send the list of existing users to the newly joined user
+    const existingUsers = Array.from(roomList.get(room_id).getPeers().entries())
+      .filter(([id]) => id !== socket.id)
+      .map(([id, peer]) => ({
+        peerId: id,
+        name: peer.name,
+        profilePicUrl: peer.profilePicUrl
+      }))
+    cb({
+      peers: existingUsers
+    })
   })
 
   socket.on('getProducers', () => {
@@ -203,6 +225,12 @@ io.on('connection', (socket) => {
     })
 
     if (!socket.room_id) return
+    // Notify others in the room
+    const peers = roomList.get(socket.room_id).getPeers()
+    const name = peers.has(socket.id) ? peers.get(socket.id).name : 'A user'
+    roomList.get(socket.room_id).broadCast(socket.id, 'notification', {
+      message: `${name} left the room.`
+    })
     roomList.get(socket.room_id).removePeer(socket.id)
   })
 
@@ -225,6 +253,12 @@ io.on('connection', (socket) => {
       })
       return
     }
+    // Notify others in the room
+    const peers = roomList.get(socket.room_id).getPeers()
+    const name = peers.has(socket.id) ? peers.get(socket.id).name : 'A user'
+    roomList.get(socket.room_id).broadCast(socket.id, 'notification', {
+      message: `${name} left the room.`
+    })
     // close transports
     await roomList.get(socket.room_id).removePeer(socket.id)
     if (roomList.get(socket.room_id).getPeers().size === 0) {

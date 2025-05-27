@@ -117,6 +117,22 @@ module.exports = class Room {
       .get(socket_id)
       .createConsumer(consumer_transport_id, producer_id, rtpCapabilities)
 
+    // Find the peer that owns this producer
+    console.log('DEBUG: Listing all peers and their producers:')
+    for (let peer of this.peers.values()) {
+      console.log(`Peer: ${peer.name}, Producers: [${Array.from(peer.producers.keys()).join(', ')}]`)
+    }
+    let producerPeer = null
+    for (let peer of this.peers.values()) {
+      if (peer.producers.has(producer_id)) {
+        producerPeer = peer
+        break
+      }
+    }
+
+    // Add producer's name to params
+    params.producerName = producerPeer ? producerPeer.name : 'Unknown User'
+
     consumer.on(
       'producerclose',
       function () {
@@ -136,8 +152,17 @@ module.exports = class Room {
   }
 
   async removePeer(socket_id) {
-    this.peers.get(socket_id).close()
-    this.peers.delete(socket_id)
+    // Save user info before deletion
+    const peer = this.peers.get(socket_id)
+    if (peer) {
+      // Notify others before removing
+      this.broadCast(socket_id, 'user-left', {
+        peerId: socket_id,
+        name: peer.name
+      })
+      peer.close()
+      this.peers.delete(socket_id)
+    }
   }
 
   closeProducer(socket_id, producer_id) {

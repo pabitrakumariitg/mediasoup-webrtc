@@ -26,7 +26,7 @@ function joinRoom(name, room_id) {
   } else {
     initEnumerateDevices()
 
-    rc = new RoomClient(localMedia, remoteVideos, remoteAudios, window.mediasoupClient, socket, room_id, name, roomOpen)
+    rc = new RoomClient(localMedia, remoteVideos, remoteAudios, window.mediasoupClient, socket, room_id, name, window.profileImageDataUrl, roomOpen)
 
     addListeners()
   }
@@ -118,22 +118,118 @@ function initEnumerateDevices() {
 }
 
 function enumerateDevices() {
-  // Load mediaDevice options
-  navigator.mediaDevices.enumerateDevices().then((devices) =>
-    devices.forEach((device) => {
-      let el = null
-      if ('audioinput' === device.kind) {
-        el = audioSelect
-      } else if ('videoinput' === device.kind) {
-        el = videoSelect
-      }
-      if (!el) return
+  return new Promise((resolve) => {
+    navigator.mediaDevices.enumerateDevices().then((devices) => {
+      devices.forEach((device) => {
+        let el = null
+        if ('audioinput' === device.kind) {
+          el = audioSelect
+        } else if ('videoinput' === device.kind) {
+          el = videoSelect
+        }
+        if (!el) return
 
-      let option = document.createElement('option')
-      option.value = device.deviceId
-      option.innerText = device.label
-      el.appendChild(option)
-      isEnumerateDevices = true
+        let option = document.createElement('option')
+        option.value = device.deviceId
+        option.innerText = device.label
+        el.appendChild(option)
+        isEnumerateDevices = true
+      })
+      resolve()
     })
-  )
+  })
 }
+
+// Notification bar
+function showNotification(message) {
+  let notif = document.getElementById('notification-bar')
+  if (!notif) {
+    notif = document.createElement('div')
+    notif.id = 'notification-bar'
+    notif.style.position = 'fixed'
+    notif.style.top = '0'
+    notif.style.left = '0'
+    notif.style.width = '100%'
+    notif.style.background = '#007bff'
+    notif.style.color = 'white'
+    notif.style.textAlign = 'center'
+    notif.style.padding = '10px'
+    notif.style.zIndex = '9999'
+    notif.style.fontWeight = 'bold'
+    notif.style.fontSize = '16px'
+    document.body.appendChild(notif)
+  }
+  notif.textContent = message
+  notif.style.display = 'block'
+  setTimeout(() => {
+    notif.style.display = 'none'
+  }, 3000)
+}
+
+socket.on('notification', (data) => {
+  if (data && data.message) {
+    showNotification(data.message)
+  }
+})
+
+window.profileImageDataUrl = null
+
+const profileImageInput = document.getElementById('profileImageInput')
+const uploadProfileImageButton = document.getElementById('uploadProfileImageButton')
+const profileImagePreview = document.getElementById('profileImagePreview')
+
+uploadProfileImageButton.onclick = function() {
+  profileImageInput.click()
+}
+profileImageInput.onchange = function(e) {
+  const file = e.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = function(evt) {
+    window.profileImageDataUrl = evt.target.result
+    profileImagePreview.src = window.profileImageDataUrl
+    profileImagePreview.style.display = 'block'
+  }
+  reader.readAsDataURL(file)
+}
+
+function joinRoomWithTitle() {
+  const name = nameInput.value
+  const room_id = roomidInput.value
+  const title = titleInput.value
+  if (!room_id || !title || !name) {
+    alert('Please enter room id, title, and username!')
+    return
+  }
+  if (!window.profileImageDataUrl) {
+    alert('Please upload a profile image before joining the room!')
+    return
+  }
+  // Always try to create the room first
+  socket.request('createRoom', { room_id })
+    .catch(() => {}) // Ignore error if already exists
+    .finally(() => {
+      joinRoom(name, room_id)
+      // Update the URL to /title/roomid
+      window.history.replaceState({}, '', `/${encodeURIComponent(title)}/${encodeURIComponent(room_id)}`)
+    })
+}
+
+// Auto-join if URL is /title/roomid
+window.addEventListener('DOMContentLoaded', () => {
+  const match = window.location.pathname.match(/^\/([^\/]+)\/([^\/]+)$/)
+  if (match) {
+    const title = decodeURIComponent(match[1])
+    const room_id = decodeURIComponent(match[2])
+    titleInput.value = title
+    roomidInput.value = room_id
+    // Optionally, auto-generate a username if not set
+    if (!nameInput.value || nameInput.value === 'user') {
+      nameInput.value = 'user_' + Math.round(Math.random() * 1000)
+    }
+    // Wait for device enumeration before joining
+    enumerateDevices().then(() => {
+      joinRoomWithTitle()
+    })
+  }
+})
