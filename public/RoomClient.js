@@ -4,6 +4,7 @@ const mediaType = {
   screen: 'screenType'
 }
 const _EVENTS = {
+  // Original events
   exitRoom: 'exitRoom',
   openRoom: 'openRoom',
   startVideo: 'startVideo',
@@ -11,7 +12,53 @@ const _EVENTS = {
   startAudio: 'startAudio',
   stopAudio: 'stopAudio',
   startScreen: 'startScreen',
-  stopScreen: 'stopScreen'
+  stopScreen: 'stopScreen',
+  
+  // Participant Events
+  participantJoined: 'participantJoined',
+  participantLeft: 'participantLeft',
+  participantMuted: 'participantMuted',
+  participantUnmuted: 'participantUnmuted',
+  participantVideoEnabled: 'participantVideoEnabled',
+  participantVideoDisabled: 'participantVideoDisabled',
+  hostChanged: 'hostChanged',
+  userKicked: 'userKicked',
+  
+  // Media Stream Events
+  trackAdded: 'trackAdded',
+  trackRemoved: 'trackRemoved',
+  audioLevelChanged: 'audioLevelChanged',
+  screenShareStarted: 'screenShareStarted',
+  screenShareStopped: 'screenShareStopped',
+  mediaStreamError: 'mediaStreamError',
+  
+  // Interaction Events
+  reactionReceived: 'reactionReceived',
+  raiseHand: 'raiseHand',
+  
+  // Network & Connection Events
+  connectionStateChanged: 'connectionStateChanged',
+  bandwidthEstimationChanged: 'bandwidthEstimationChanged',
+  reconnectAttempt: 'reconnectAttempt',
+  reconnectSuccess: 'reconnectSuccess',
+  connectionFailed: 'connectionFailed',
+  
+  // Room/Session Lifecycle Events
+  roomCreated: 'roomCreated',
+  roomJoined: 'roomJoined',
+  roomEnded: 'roomEnded',
+  sessionTimeout: 'sessionTimeout',
+  
+  // Admin/Host Control Events
+  muteAll: 'muteAll',
+  lockRoom: 'lockRoom',
+  unlockRoom: 'unlockRoom',
+  
+  // Error and Exception Events
+  error: 'error',
+  mediaError: 'mediaError',
+  socketDisconnect: 'socketDisconnect',
+  unauthorizedAccessAttempt: 'unauthorizedAccessAttempt'
 }
 
 class RoomClient {
@@ -237,6 +284,7 @@ class RoomClient {
   }
 
   initSockets() {
+    // Original event handlers
     this.socket.on(
       'consumerClosed',
       function ({ consumer_id }) {
@@ -265,13 +313,16 @@ class RoomClient {
       'disconnect',
       function () {
         this.exit(true)
+        this.event(_EVENTS.socketDisconnect)
       }.bind(this)
     )
 
+    // User join/leave events
     this.socket.on(
       'user-joined',
       function (user) {
         this.addRemoteUserTile(user)
+        this.event(_EVENTS.participantJoined, user)
       }.bind(this)
     )
 
@@ -281,7 +332,257 @@ class RoomClient {
         // user.peerId should be present
         if (user && user.peerId) {
           this.removeRemoteUserTile(user.peerId)
+          this.event(_EVENTS.participantLeft, user)
         }
+      }.bind(this)
+    )
+    
+    // Participant Events
+    this.socket.on(
+      'participant-muted',
+      function (participantId) {
+        console.log('Participant muted:', participantId)
+        this.event(_EVENTS.participantMuted, participantId)
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'participant-unmuted',
+      function (participantId) {
+        console.log('Participant unmuted:', participantId)
+        this.event(_EVENTS.participantUnmuted, participantId)
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'participant-video-enabled',
+      function (participantId) {
+        console.log('Participant video enabled:', participantId)
+        this.event(_EVENTS.participantVideoEnabled, participantId)
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'participant-video-disabled',
+      function (participantId) {
+        console.log('Participant video disabled:', participantId)
+        this.event(_EVENTS.participantVideoDisabled, participantId)
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'host-changed',
+      function (newHostId) {
+        console.log('Host changed to:', newHostId)
+        this.event(_EVENTS.hostChanged, newHostId)
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'user-kicked',
+      function (participantId) {
+        console.log('User kicked:', participantId)
+        // If this user is being kicked, exit the room
+        if (participantId === this.socket.id) {
+          this.exit(true)
+        }
+        this.event(_EVENTS.userKicked, participantId)
+      }.bind(this)
+    )
+    
+    // Media Stream Events
+    this.socket.on(
+      'track-added',
+      function ({ participantId, mediaTrack }) {
+        console.log('Track added:', participantId, mediaTrack)
+        this.event(_EVENTS.trackAdded, { participantId, mediaTrack })
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'track-removed',
+      function ({ participantId, mediaTrack }) {
+        console.log('Track removed:', participantId, mediaTrack)
+        this.event(_EVENTS.trackRemoved, { participantId, mediaTrack })
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'audio-level-changed',
+      function ({ participantId, level }) {
+        // Don't log this as it's high frequency
+        this.event(_EVENTS.audioLevelChanged, { participantId, level })
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'screen-share-started',
+      function (participantId) {
+        console.log('Screen share started:', participantId)
+        this.event(_EVENTS.screenShareStarted, participantId)
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'screen-share-stopped',
+      function (participantId) {
+        console.log('Screen share stopped:', participantId)
+        this.event(_EVENTS.screenShareStopped, participantId)
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'media-stream-error',
+      function (error) {
+        console.error('Media stream error:', error)
+        this.event(_EVENTS.mediaStreamError, error)
+      }.bind(this)
+    )
+    
+    // Interaction Events
+    this.socket.on(
+      'reaction-received',
+      function ({ senderId, reactionType }) {
+        console.log('Reaction received:', senderId, reactionType)
+        this.event(_EVENTS.reactionReceived, { senderId, reactionType })
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'raise-hand',
+      function (participantId) {
+        console.log('Hand raised by:', participantId)
+        this.event(_EVENTS.raiseHand, participantId)
+      }.bind(this)
+    )
+    
+    // Network & Connection Events
+    this.socket.on(
+      'connection-state-changed',
+      function ({ participantId, state }) {
+        console.log('Connection state changed:', participantId, state)
+        this.event(_EVENTS.connectionStateChanged, { participantId, state })
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'bandwidth-estimation-changed',
+      function (estimate) {
+        console.log('Bandwidth estimation changed:', estimate)
+        this.event(_EVENTS.bandwidthEstimationChanged, estimate)
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'reconnect-attempt',
+      function (participantId) {
+        console.log('Reconnect attempt:', participantId)
+        this.event(_EVENTS.reconnectAttempt, participantId)
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'reconnect-success',
+      function (participantId) {
+        console.log('Reconnect success:', participantId)
+        this.event(_EVENTS.reconnectSuccess, participantId)
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'connection-failed',
+      function (error) {
+        console.error('Connection failed:', error)
+        this.event(_EVENTS.connectionFailed, error)
+      }.bind(this)
+    )
+    
+    // Room/Session Lifecycle Events
+    this.socket.on(
+      'room-created',
+      function (roomId) {
+        console.log('Room created:', roomId)
+        this.event(_EVENTS.roomCreated, roomId)
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'room-joined',
+      function (roomData) {
+        console.log('Room joined:', roomData)
+        this.event(_EVENTS.roomJoined, roomData)
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'room-ended',
+      function (roomId) {
+        console.log('Room ended:', roomId)
+        this.exit(true)
+        this.event(_EVENTS.roomEnded, roomId)
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'session-timeout',
+      function () {
+        console.log('Session timeout')
+        this.exit(true)
+        this.event(_EVENTS.sessionTimeout)
+      }.bind(this)
+    )
+    
+    // Admin/Host Control Events
+    this.socket.on(
+      'mute-all',
+      function () {
+        console.log('Mute all request received')
+        // Close audio producer if exists
+        if (this.producerLabel.has(mediaType.audio)) {
+          this.closeProducer(mediaType.audio)
+        }
+        this.event(_EVENTS.muteAll)
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'lock-room',
+      function () {
+        console.log('Room locked')
+        this.event(_EVENTS.lockRoom)
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'unlock-room',
+      function () {
+        console.log('Room unlocked')
+        this.event(_EVENTS.unlockRoom)
+      }.bind(this)
+    )
+    
+    // Error and Exception Events
+    this.socket.on(
+      'error',
+      function ({ errorCode, errorMessage }) {
+        console.error('Error:', errorCode, errorMessage)
+        this.event(_EVENTS.error, { errorCode, errorMessage })
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'media-error',
+      function ({ participantId, mediaType, error }) {
+        console.error('Media error:', participantId, mediaType, error)
+        this.event(_EVENTS.mediaError, { participantId, mediaType, error })
+      }.bind(this)
+    )
+    
+    this.socket.on(
+      'unauthorized-access-attempt',
+      function () {
+        console.error('Unauthorized access attempt')
+        this.event(_EVENTS.unauthorizedAccessAttempt)
       }.bind(this)
     )
   }
@@ -457,10 +758,22 @@ class RoomClient {
   async consume(producer_id) {
     this.getConsumeStream(producer_id).then(
       function ({ consumer, stream, kind, producerName }) {
+        // Check if we already have a consumer with this ID to avoid duplicates
+        if (this.consumers.has(consumer.id)) {
+          console.log(`Consumer ${consumer.id} already exists, not creating duplicate`)
+          return
+        }
+        
         this.consumers.set(consumer.id, consumer)
 
         let elem
         if (kind === 'video') {
+          // Check if video element already exists
+          if (document.getElementById(consumer.id)) {
+            console.log(`Video element for ${consumer.id} already exists, not creating duplicate`)
+            return
+          }
+          
           elem = document.createElement('video')
           elem.srcObject = stream
           elem.id = consumer.id
@@ -468,8 +781,9 @@ class RoomClient {
           elem.autoplay = true
           elem.className = 'vid'
           
-          // Create a container for video and username
+          // Create a container for video and username with a unique ID
           const containerDiv = document.createElement('div')
+          containerDiv.id = `container-${consumer.id}`
           containerDiv.style.display = 'flex'
           containerDiv.style.flexDirection = 'column'
           containerDiv.style.alignItems = 'center'
@@ -486,6 +800,12 @@ class RoomClient {
           this.remoteVideoEl.appendChild(containerDiv)
           this.handleFS(elem.id)
         } else {
+          // Check if audio element already exists
+          if (document.getElementById(consumer.id)) {
+            console.log(`Audio element for ${consumer.id} already exists, not creating duplicate`)
+            return
+          }
+          
           elem = document.createElement('audio')
           elem.srcObject = stream
           elem.id = consumer.id
@@ -607,19 +927,34 @@ class RoomClient {
   }
 
   removeConsumer(consumer_id) {
+    // Find the media element
     let elem = document.getElementById(consumer_id)
     if (elem) {
-    elem.srcObject.getTracks().forEach(function (track) {
-      track.stop()
-    })
-      // Find and remove the container div instead of just the video element
-      let container = elem.parentNode
-      if (container && container.parentNode) {
+      // Stop all tracks
+      if (elem.srcObject && elem.srcObject.getTracks) {
+        elem.srcObject.getTracks().forEach(function (track) {
+          track.stop()
+        })
+      }
+      
+      // Find the container by its unique ID
+      let container = document.getElementById(`container-${consumer_id}`)
+      if (container) {
+        // Remove the container directly
         container.parentNode.removeChild(container)
+      } else {
+        // Fallback to finding the container as parent
+        container = elem.parentNode
+        if (container && container.parentNode) {
+          container.parentNode.removeChild(container)
+        }
       }
     }
-    // TODO: Show remote profile image if available (requires signaling profile image to others)
+    
+    // Always make sure to delete from the consumer map
     this.consumers.delete(consumer_id)
+    
+    console.log(`Consumer ${consumer_id} removed successfully`)
   }
 
   exit(offline = false) {
@@ -660,9 +995,9 @@ class RoomClient {
     return mediaType
   }
 
-  event(evt) {
+  event(evt, data) {
     if (this.eventListeners.has(evt)) {
-      this.eventListeners.get(evt).forEach((callback) => callback())
+      this.eventListeners.get(evt).forEach((callback) => callback(data))
     }
   }
 

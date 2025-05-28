@@ -46,26 +46,106 @@
     </head>
     <body>
         <div class="container">
-            <div id="login">
-                <br />
-                <div id="profileImageUploadSection" style="margin-bottom: 20px; text-align: center;">
-                    <div style="font-weight: bold; margin-bottom: 8px;">Upload Your Profile Image</div>
-                    <!-- <div style="font-size: 13px; margin-bottom: 8px;">
-                        Before entering the room, please upload a profile image. This image will be shown to others when your video is turned off.<br/>
-                        <span style="color: #888;">(Recommended: clear face, good lighting, square format)</span>
-                    </div> -->
-                    <input type="file" id="profileImageInput" accept="image/*" style="display: none;" />
-                    <button type="button" id="uploadProfileImageButton" style="margin-bottom: 8px;">Upload Image</button>
-                    <br />
-                    <img id="profileImagePreview" src="" alt="Profile Preview" style="display: none; max-width: 120px; max-height: 120px;  border: 2px solid #2c3e50; margin-top: 8px;" />
+            <!-- Step 1: Profile Creation -->
+            <div id="profileSetup" class="text-center">
+                <h3 class="mt-4 mb-4">Create Your Profile</h3>
+                <div class="card mx-auto" style="max-width: 500px;">
+                    <div class="card-body">
+                        <div class="form-group mb-3">
+                            <label for="nameInput"><i class="fas fa-user"></i> Your Name</label>
+                            <input id="nameInput" class="form-control" value="user" type="text" placeholder="Enter your name" />
+                        </div>
+                        
+                        <div class="form-group mb-4">
+                            <label><i class="fas fa-image"></i> Profile Picture</label>
+                            <div class="d-flex flex-column align-items-center">
+                                <input type="file" id="profileImageInput" accept="image/*" style="display: none;" />
+                                <button type="button" id="uploadProfileImageButton" class="btn btn-outline-primary mb-3">Select Image</button>
+                                <img id="profileImagePreview" src="" alt="Profile Preview" style="display: none; max-width: 150px; max-height: 150px; border-radius: 50%; border: 3px solid #2c3e50;" />
+                            </div>
+                        </div>
+                        
+                        <button id="continueToRoomButton" class="btn btn-primary btn-lg w-100" onclick="continueToRoomOptions()">
+                            <i class="fas fa-arrow-right"></i> Continue
+                        </button>
+                    </div>
                 </div>
-                <i class="fas fa-server"> Room: </i><input id="roomidInput" value="123" type="text" />
-                <i class="fas fa-heading"> Title: </i><input id="titleInput" value="myroom" type="text" />
-                <!--<button id="createRoom" onclick="createRoom(roomid.value)" label="createRoom">Create Room</button>-->
-                <i class="fas fa-user"> User: </i><input id="nameInput" value="user" type="text" />
-                <button id="joinButton" onclick="joinRoomWithTitle()">
-                    <i class="fas fa-sign-in-alt"></i> Join
-                </button>
+            </div>
+            
+            <!-- Step 2: Room Options (Create or Join) -->
+            <div id="roomOptions" class="text-center hidden">
+                <h3 class="mt-4 mb-4">What would you like to do?</h3>
+                <div class="d-flex justify-content-center gap-4">
+                    <div class="card" style="width: 18rem;">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-plus-circle"></i> Create Room</h5>
+                            <p class="card-text">Start a new video meeting and invite others to join.</p>
+                            <button class="btn btn-success w-100" onclick="showCreateRoomForm()">
+                                Create New Room
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="card" style="width: 18rem;">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-sign-in-alt"></i> Join Room</h5>
+                            <p class="card-text">Join an existing video meeting using a room ID.</p>
+                            <button class="btn btn-info w-100" onclick="showJoinRoomForm()">
+                                Join Existing Room
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Step 3a: Create Room Form -->
+            <div id="createRoomForm" class="text-center hidden">
+                <h3 class="mt-4 mb-4">Create New Room</h3>
+                <div class="card mx-auto" style="max-width: 500px;">
+                    <div class="card-body">
+                        <div class="form-group mb-3">
+                            <label for="createRoomTitle"><i class="fas fa-heading"></i> Room Title</label>
+                            <input id="createRoomTitle" class="form-control" value="My Meeting" type="text" placeholder="Enter a title for your room" />
+                        </div>
+                        
+                        <div class="form-group mb-4">
+                            <label for="createRoomId"><i class="fas fa-server"></i> Room ID</label>
+                            <input id="createRoomId" class="form-control" value="" type="text" placeholder="Leave blank for auto-generated ID" />
+                            <small class="form-text text-muted">Leave blank to auto-generate a unique room ID</small>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-secondary" onclick="backToRoomOptions()">
+                                <i class="fas fa-arrow-left"></i> Back
+                            </button>
+                            <button class="btn btn-primary flex-grow-1" onclick="createAndJoinRoom()">
+                                <i class="fas fa-video"></i> Create & Join
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Step 3b: Join Room Form -->
+            <div id="joinRoomForm" class="text-center hidden">
+                <h3 class="mt-4 mb-4">Join Existing Room</h3>
+                <div class="card mx-auto" style="max-width: 500px;">
+                    <div class="card-body">
+                        <div class="form-group mb-4">
+                            <label for="joinRoomId"><i class="fas fa-server"></i> Room ID</label>
+                            <input id="joinRoomId" class="form-control" value="" type="text" placeholder="Enter room ID" />
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-secondary" onclick="backToRoomOptions()">
+                                <i class="fas fa-arrow-left"></i> Back
+                            </button>
+                            <button class="btn btn-primary flex-grow-1" onclick="joinExistingRoom()">
+                                <i class="fas fa-sign-in-alt"></i> Join Room
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

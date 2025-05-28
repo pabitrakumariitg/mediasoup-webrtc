@@ -18,6 +18,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "body-parser": "^2.2.0",
     "express": "^4.19.2",
     "httpolyglot": "^0.1.2",
     "mediasoup": "^3.14.1",

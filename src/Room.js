@@ -189,4 +189,173 @@ module.exports = class Room {
       peers: JSON.stringify([...this.peers])
     }
   }
+
+  // Participant Events
+  emitParticipantJoined(participant) {
+    // When a new participant joins, broadcast to all peers
+    this.broadCast(participant.id, 'user-joined', participant)
+  }
+
+  emitParticipantLeft(participant) {
+    // When a participant leaves, broadcast to all peers
+    this.broadCast(participant.id, 'user-left', participant)
+  }
+
+  emitParticipantMuted(participantId) {
+    // When a participant is muted, broadcast to all peers
+    this.io.to(this.id).emit('participant-muted', participantId)
+  }
+
+  emitParticipantUnmuted(participantId) {
+    // When a participant is unmuted, broadcast to all peers
+    this.io.to(this.id).emit('participant-unmuted', participantId)
+  }
+
+  emitParticipantVideoEnabled(participantId) {
+    // When a participant enables video, broadcast to all peers
+    this.io.to(this.id).emit('participant-video-enabled', participantId)
+  }
+
+  emitParticipantVideoDisabled(participantId) {
+    // When a participant disables video, broadcast to all peers
+    this.io.to(this.id).emit('participant-video-disabled', participantId)
+  }
+
+  emitHostChanged(newHostId) {
+    // When host changes, broadcast to all peers
+    this.io.to(this.id).emit('host-changed', newHostId)
+  }
+
+  emitUserKicked(participantId) {
+    // When a user is kicked, notify all peers and the kicked user
+    this.io.to(this.id).emit('user-kicked', participantId)
+    // Also notify the kicked user directly
+    this.send(participantId, 'user-kicked', participantId)
+  }
+
+  // Media Stream Events
+  emitTrackAdded(participantId, mediaTrack) {
+    // When a track is added, broadcast to all peers
+    this.io.to(this.id).emit('track-added', { participantId, mediaTrack })
+  }
+
+  emitTrackRemoved(participantId, mediaTrack) {
+    // When a track is removed, broadcast to all peers
+    this.io.to(this.id).emit('track-removed', { participantId, mediaTrack })
+  }
+
+  emitAudioLevelChanged(participantId, level) {
+    // When audio level changes, broadcast to all peers
+    this.io.to(this.id).emit('audio-level-changed', { participantId, level })
+  }
+
+  emitScreenShareStarted(participantId) {
+    // When screen sharing starts, broadcast to all peers
+    this.io.to(this.id).emit('screen-share-started', participantId)
+  }
+
+  emitScreenShareStopped(participantId) {
+    // When screen sharing stops, broadcast to all peers
+    this.io.to(this.id).emit('screen-share-stopped', participantId)
+  }
+
+  emitMediaStreamError(error) {
+    // When there's a media stream error, broadcast to all peers
+    this.io.to(this.id).emit('media-stream-error', error)
+  }
+
+  // Interaction Events
+  emitReactionReceived(senderId, reactionType) {
+    // When a reaction is received, broadcast to all peers
+    this.io.to(this.id).emit('reaction-received', { senderId, reactionType })
+  }
+
+  emitRaiseHand(participantId) {
+    // When a participant raises hand, broadcast to all peers
+    this.io.to(this.id).emit('raise-hand', participantId)
+  }
+
+  // Network & Connection Events
+  emitConnectionStateChanged(participantId, state) {
+    // When connection state changes, broadcast to all peers
+    this.io.to(this.id).emit('connection-state-changed', { participantId, state })
+  }
+
+  emitBandwidthEstimationChanged(estimate) {
+    // When bandwidth estimation changes, broadcast to all peers
+    this.io.to(this.id).emit('bandwidth-estimation-changed', estimate)
+  }
+
+  emitReconnectAttempt(participantId) {
+    // When reconnection is attempted, broadcast to all peers
+    this.io.to(this.id).emit('reconnect-attempt', participantId)
+  }
+
+  emitReconnectSuccess(participantId) {
+    // When reconnection succeeds, broadcast to all peers
+    this.io.to(this.id).emit('reconnect-success', participantId)
+  }
+
+  emitConnectionFailed(error) {
+    // When connection fails, broadcast to all peers
+    this.io.to(this.id).emit('connection-failed', error)
+  }
+
+  // Room/Session Lifecycle Events
+  emitRoomCreated(roomId) {
+    // When room is created, broadcast to all peers
+    this.io.to(this.id).emit('room-created', roomId)
+  }
+
+  emitRoomJoined(roomData) {
+    // When room is joined, broadcast to all peers
+    this.io.to(this.id).emit('room-joined', roomData)
+  }
+
+  emitRoomEnded(roomId) {
+    // When room ends, broadcast to all peers
+    this.io.to(this.id).emit('room-ended', roomId)
+  }
+
+  emitSessionTimeout() {
+    // When session times out, broadcast to all peers
+    this.io.to(this.id).emit('session-timeout')
+  }
+
+  // Admin/Host Control Events
+  emitMuteAll() {
+    // When all participants should be muted, broadcast to all peers
+    this.io.to(this.id).emit('mute-all')
+  }
+
+  emitLockRoom() {
+    // When room is locked, broadcast to all peers
+    this.io.to(this.id).emit('lock-room')
+  }
+
+  emitUnlockRoom() {
+    // When room is unlocked, broadcast to all peers
+    this.io.to(this.id).emit('unlock-room')
+  }
+
+  // Error and Exception Events
+  emitError(errorCode, errorMessage) {
+    // When an error occurs, broadcast to all peers
+    this.io.to(this.id).emit('error', { errorCode, errorMessage })
+  }
+
+  emitMediaError(participantId, mediaType, error) {
+    // When a media error occurs, broadcast to all peers
+    this.io.to(this.id).emit('media-error', { participantId, mediaType, error })
+  }
+
+  emitSocketDisconnect(reason) {
+    // When socket disconnects, broadcast to all peers
+    this.io.to(this.id).emit('socket-disconnect', reason)
+  }
+
+  emitUnauthorizedAccessAttempt() {
+    // When unauthorized access is attempted, broadcast to all peers
+    this.io.to(this.id).emit('unauthorized-access-attempt')
+  }
 }

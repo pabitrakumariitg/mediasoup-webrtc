@@ -88,6 +88,21 @@ io.on('connection', (socket) => {
       callback(room_id)
     }
   })
+  
+  socket.on('checkRoom', ({ room_id }, callback) => {
+    console.log('Checking if room exists:', room_id)
+    if (roomList.has(room_id)) {
+      callback({
+        exists: true,
+        // We don't store room titles, so just returning the room exists
+        room_id: room_id
+      })
+    } else {
+      callback({
+        exists: false
+      })
+    }
+  })
 
   socket.on('join', ({ room_id, name, profilePicUrl }, cb) => {
     console.log('User joined', {
