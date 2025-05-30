@@ -1,4 +1,4 @@
-# Mediasoup video conferencing
+# Mediasoup video conferencing App
 
 Example website for multi-party video/audio/screen conferencing using mediasoup. This project is intended to better understand how mediasoup works with a simple example.
 
