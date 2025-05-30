@@ -6,7 +6,8 @@ set -e
 
 # Configuration
 EC2_HOST="ec2-user@35.154.27.171"
-APP_DIR="/mediasoup-webrtc"
+APP_DIR="ubuntu@ip-172-31-43-110:~/mediasoup-webrtc$ sudo ufw status
+Status: inactive/mediasoup-webrtc"
 
 echo "Deploying to EC2 instance..."
 

@@ -1,4 +1,5 @@
 const express = require('express')
+const cors = require('cors')
 
 const app = express()
 const https = require('httpolyglot')
@@ -14,8 +15,21 @@ const options = {
   cert: fs.readFileSync(path.join(__dirname, config.sslCrt), 'utf-8')
 }
 
+// Add CORS middleware for both local and production
+app.use(cors({
+  origin: ['https://35.154.27.171:3016', 'https://localhost:3016', 'http://localhost:3016'],
+  methods: ['GET', 'POST'],
+  credentials: true
+}))
+
 const httpsServer = https.createServer(options, app)
-const io = require('socket.io')(httpsServer)
+const io = require('socket.io')(httpsServer, {
+  cors: {
+    origin: ['https://35.154.27.171:3016', 'https://localhost:3016', 'http://localhost:3016'],
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+})
 
 app.use(express.static(path.join(__dirname, '..', 'public')))
 
