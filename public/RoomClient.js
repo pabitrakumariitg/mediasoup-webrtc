@@ -629,7 +629,7 @@ class RoomClient {
       default:
         return
     }
-    if (!this.device.canProduce('video') && !audio) {
+    if (!this.device || !this.device.canProduce || (type === 'video' && !this.device.canProduce('video') && !audio)) {
       console.error('Cannot produce video')
       return
     }
@@ -957,31 +957,66 @@ class RoomClient {
     console.log(`Consumer ${consumer_id} removed successfully`)
   }
 
-  exit(offline = false) {
-    let clean = function () {
+  async exit(offline = false) {
+    const clean = async () => {
       this._isOpen = false
-      this.consumerTransport.close()
-      this.producerTransport.close()
+      
+      // Close producers first
+      for (const [type, producer] of this.producers.entries()) {
+        try {
+          if (producer && !producer.closed) {
+            await producer.close()
+          }
+        } catch (err) {
+          console.error('Error closing producer:', err)
+        }
+        this.producers.delete(type)
+      }
+
+      // Close consumer transport if it exists
+      try {
+        if (this.consumerTransport && !this.consumerTransport.closed) {
+          this.consumerTransport.close()
+        }
+      } catch (err) {
+        console.error('Error closing consumer transport:', err)
+      }
+
+      // Close producer transport if it exists
+      try {
+        if (this.producerTransport && !this.producerTransport.closed) {
+          this.producerTransport.close()
+        }
+      } catch (err) {
+        console.error('Error closing producer transport:', err)
+      }
+
+      // Clean up socket listeners
       this.socket.off('disconnect')
       this.socket.off('newProducers')
       this.socket.off('consumerClosed')
-    }.bind(this)
-
-    if (!offline) {
-      this.socket
-        .request('exitRoom')
-        .then((e) => console.log(e))
-        .catch((e) => console.warn(e))
-        .finally(
-          function () {
-            clean()
-          }.bind(this)
-        )
-    } else {
-      clean()
+      
+      // Clear all state
+      this.consumers.clear()
+      this.producers.clear()
+      this.producerLabel.clear()
+      
+      this.consumerTransport = null
+      this.producerTransport = null
+      this.device = null
     }
 
-    this.event(_EVENTS.exitRoom)
+    try {
+      if (!offline) {
+        await this.socket.request('exitRoom')
+      }
+      await clean()
+      this.event(_EVENTS.exitRoom)
+    } catch (error) {
+      console.error('Error during exit:', error)
+      await clean() // Ensure cleanup even if exitRoom fails
+      this.event(_EVENTS.exitRoom)
+    }
   }
 
   ///////  HELPERS //////////
