@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: mediasoup-app
+    restart: always
+    ports:
+      - "3016:3016"
+      - "10000-10100:10000-10100/udp"
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3016"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - ./ssl:/app/ssl:ro
